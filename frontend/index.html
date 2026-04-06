@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Maker</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <img src="https://makers.kakao.com/_nuxt/img/1c983c5.svg" alt="logo" />
+    <span id="header-title">Card Maker</span>
+  </header>
+
+  <main>
+    <!-- 미리보기 -->
+    <div id="card-area">
+      <div id="preview-container">
+        <div id="empty-state">
+          <p>이미지를 업로드하면<br/>미리보기가 표시됩니다</p>
+        </div>
+        <img id="preview" alt="" hidden />
+        <div id="blur-overlay"></div>
+        <div id="gradient-overlay"></div>
+        <div id="card-text">
+          <p id="card-title"></p>
+          <p id="card-subtitle"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 다운로드 버튼 -->
+    <button id="download-btn" hidden>이미지 다운로드</button>
+
+    <!-- 이미지 업로드 -->
+    <div id="drop-zone">
+      <span>+ 이미지 업로드</span>
+      <input type="file" id="file-input" accept="image/*" hidden />
+    </div>
+
+    <!-- 색상 피커 -->
+    <div id="controls" hidden>
+      <p class="controls-label">색상</p>
+      <div id="swatches"></div>
+    </div>
+
+    <!-- 텍스트 입력 -->
+    <div id="text-fields">
+      <div class="field-group">
+        <label>대표문구</label>
+        <textarea id="input-title" placeholder="제목을 입력하세요" rows="2" maxlength="18"></textarea>
+        <span class="char-count" id="count-title">0 / 18</span>
+      </div>
+      <div class="field-group">
+        <label>서브문구</label>
+        <textarea id="input-subtitle" placeholder="부제목을 입력하세요" rows="2" maxlength="34"></textarea>
+        <span class="char-count" id="count-subtitle">0 / 34</span>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
