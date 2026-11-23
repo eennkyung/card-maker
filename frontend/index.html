@@ -8,7 +8,6 @@
 </head>
 <body>
   <header>
-    <img src="https://makers.kakao.com/_nuxt/img/1c983c5.svg" alt="logo" />
     <span id="header-title">Card Maker</span>
   </header>
 
@@ -19,6 +18,7 @@
         <div id="empty-state">
           <p>이미지를 업로드하면<br/>미리보기가 표시됩니다</p>
         </div>
+        <img id="background-fill" alt="" hidden />
         <img id="preview" alt="" hidden />
         <div id="blur-overlay"></div>
         <div id="gradient-overlay"></div>
@@ -38,9 +38,29 @@
       <input type="file" id="file-input" accept="image/*" hidden />
     </div>
 
+    <!-- 이미지 크기 -->
+    <fieldset id="size-controls">
+      <legend>이미지 크기</legend>
+      <label>
+        <input type="radio" name="image-size" value="340" checked />
+        Large
+      </label>
+      <label>
+        <input type="radio" name="image-size" value="260" />
+        Small
+      </label>
+    </fieldset>
+
     <!-- 색상 피커 -->
     <div id="controls" hidden>
-      <p class="controls-label">색상</p>
+      <div class="controls-heading">
+        <p class="controls-label">색상</p>
+        <button id="refresh-colors" type="button" aria-label="색상 새로고침" title="색상 새로고침">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M13.5 8a5.5 5.5 0 0 1-9.7 3.55M2.5 8a5.5 5.5 0 0 1 9.7-3.55M3.8 11.55H2v1.8M12.2 4.45H14v-1.8" />
+          </svg>
+        </button>
+      </div>
       <div id="swatches"></div>
     </div>
 

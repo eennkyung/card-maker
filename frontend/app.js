@@ -5,12 +5,15 @@ const fileInput = document.getElementById("file-input");
 const dropZone = document.getElementById("drop-zone");
 const previewContainer = document.getElementById("preview-container");
 const preview = document.getElementById("preview");
+const backgroundFill = document.getElementById("background-fill");
 const emptyState = document.getElementById("empty-state");
 const gradientOverlay = document.getElementById("gradient-overlay");
 const cardText = document.getElementById("card-text");
 const controls = document.getElementById("controls");
 const swatches = document.getElementById("swatches");
 const downloadBtn = document.getElementById("download-btn");
+const refreshColorsBtn = document.getElementById("refresh-colors");
+const sizeOptions = document.querySelectorAll('input[name="image-size"]');
 
 const inputTitle = document.getElementById("input-title");
 const inputSubtitle = document.getElementById("input-subtitle");
@@ -23,6 +26,23 @@ const PLACEHOLDER_TITLE = "대표문구가 나타\n나는 자리입니다";
 const PLACEHOLDER_SUBTITLE = "서브문구 나타나는 자리입니다";
 
 let allColors = [];
+let paletteCandidates = [];
+let currentSelectedHex = "";
+let currentSize = 340;
+
+function updateCardSize(size) {
+  currentSize = size;
+  previewContainer.style.setProperty("--image-size", `${size}px`);
+  preview.style.transform = "translateY(-60px) scale(1.2)";
+}
+
+sizeOptions.forEach((option) => {
+  option.addEventListener("change", () => {
+    if (option.checked) updateCardSize(Number(option.value));
+  });
+});
+
+updateCardSize(currentSize);
 
 // ── 텍스트 입력 → 카드 반영 ──
 function syncText(textarea, cardEl, countEl, maxCharsPerLine, maxLines) {
@@ -125,9 +145,11 @@ document.addEventListener("drop", (e) => {
 async function handleFile(file) {
   if (!file.type.startsWith("image/")) return;
 
-  preview.src = URL.createObjectURL(file);
-  preview.style.transform = "translateY(-60px) scale(1.2)";
+  const imageUrl = URL.createObjectURL(file);
+  preview.src = imageUrl;
+  backgroundFill.src = imageUrl;
   preview.hidden = false;
+  backgroundFill.hidden = false;
   emptyState.hidden = true;
   clearGradient();
   showCardPlaceholders();
@@ -154,10 +176,24 @@ async function handleFile(file) {
   }
 }
 
-function renderPalette(colors) {
-  allColors = colors;
+function pickRandomColors(colors) {
+  const shuffled = [...colors];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
 
-  swatches.innerHTML = colors
+  if (shuffled.length > 1 && shuffled[0].hex === currentSelectedHex) {
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+  }
+  return shuffled;
+}
+
+function renderPalette(colors) {
+  paletteCandidates = colors;
+  allColors = pickRandomColors(paletteCandidates);
+
+  swatches.innerHTML = allColors
     .map(
       (c, i) => `
       <div class="swatch${i === 0 ? " selected" : ""}" data-index="${i}">
@@ -174,13 +210,18 @@ function renderPalette(colors) {
 
   controls.hidden = false;
   downloadBtn.hidden = false;
-  applyGradient(colors[0]);
+  currentSelectedHex = allColors[0].hex;
+  applyGradient(allColors[0]);
 }
+
+refreshColorsBtn.addEventListener("click", () => renderPalette(paletteCandidates));
 
 function selectSwatch(el) {
   swatches.querySelectorAll(".swatch").forEach((s) => s.classList.remove("selected"));
   el.classList.add("selected");
-  applyGradient(allColors[parseInt(el.dataset.index)]);
+  const color = allColors[parseInt(el.dataset.index)];
+  currentSelectedHex = color.hex;
+  applyGradient(color);
 }
 
 function clearGradient() {
@@ -189,6 +230,18 @@ function clearGradient() {
 
 function applyGradient(color) {
   gradientOverlay.style.background = `linear-gradient(to bottom, transparent 0%, ${color.hex} 100%)`;
+  cardText.style.color = getAccessibleTextColor(color.hex);
+}
+
+function getAccessibleTextColor(hex) {
+  const channels = [1, 3, 5].map((offset) => {
+    const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  const contrastWithBlack = (luminance + 0.05) / 0.05;
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+  return contrastWithBlack >= contrastWithWhite ? "#000" : "#FFF";
 }
 
 // ── 다운로드 ──
@@ -203,30 +256,51 @@ downloadBtn.addEventListener("click", () => {
   const ctx = canvas.getContext("2d");
   ctx.scale(SCALE, SCALE);
 
-  // 1. 배경 흰색으로 채우기
+  // 1. 이미지 바탕을 흐리게 확장해 이미지 아래의 빈 공간을 채웁니다.
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
+  const backgroundWidth = W + 24;
+  const backgroundHeight = H + 24;
+  const backgroundScale = Math.max(
+    backgroundWidth / preview.naturalWidth,
+    backgroundHeight / preview.naturalHeight
+  );
+  const backgroundSourceWidth = backgroundWidth / backgroundScale;
+  const backgroundSourceHeight = backgroundHeight / backgroundScale;
+  ctx.save();
+  ctx.filter = "blur(12px)";
+  ctx.drawImage(
+    preview,
+    (preview.naturalWidth - backgroundSourceWidth) / 2,
+    (preview.naturalHeight - backgroundSourceHeight) / 2,
+    backgroundSourceWidth,
+    backgroundSourceHeight,
+    -12,
+    -12,
+    backgroundWidth,
+    backgroundHeight
+  );
+  ctx.restore();
 
   // 2. object-fit: cover 재현
   const imgW = preview.naturalWidth;
   const imgH = preview.naturalHeight;
-  const coverScale = Math.max(W / imgW, H / imgH);
-  const sw = W / coverScale;
-  const sh = H / coverScale;
+  const coverScale = Math.max(currentSize / imgW, currentSize / imgH);
+  const sw = currentSize / coverScale;
+  const sh = currentSize / coverScale;
   const sx = (imgW - sw) / 2;
   const sy = (imgH - sh) / 2;
 
-  // 3. CSS transform 재현: transform-origin center top, scale(1.2) 후 translateY(-60px)
+  // 3. CSS transform 재현: transform-origin center top, scale(1.2) 후 크기에 비례한 이동
   //    CSS는 scale → translate 순, Canvas는 역순으로 설정
   ctx.save();
-  ctx.translate(W / 2, -60); // translateY(-60) + transform-origin x
+  ctx.translate(W / 2, -60);
   ctx.scale(1.2, 1.2);
-  ctx.translate(-W / 2, 0);  // transform-origin 복원
-  ctx.drawImage(preview, sx, sy, sw, sh, 0, 0, W, H);
+  ctx.translate(-W / 2, 0);
+  ctx.drawImage(preview, sx, sy, sw, sh, (W - currentSize) / 2, 0, currentSize, currentSize);
   ctx.restore();
 
-  // 3. 그라디언트: bottom: -8px, height: 154px
-  //    top = 309 + 8 - 154 = 163, bottom edge = 317 (canvas 밖, 자연 클립)
+  // 4. 그라디언트: bottom: -8px, height: 154px
   const selectedEl = swatches.querySelector(".swatch.selected");
   if (selectedEl) {
     const color = allColors[parseInt(selectedEl.dataset.index)];
@@ -243,7 +317,7 @@ downloadBtn.addEventListener("click", () => {
   }
 
   const link = document.createElement("a");
-  link.download = "card.png";
+  link.download = `card-${W * SCALE}x${H * SCALE}.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
 });
