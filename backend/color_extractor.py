@@ -25,7 +25,7 @@ def extract_dominant_colors(image_bytes: bytes, count: int = 6) -> list[dict]:
     image = Image.open(BytesIO(image_bytes)).convert("RGBA")
     has_palette_pixels = any(
         alpha >= 125 and not (red > 250 and green > 250 and blue > 250)
-        for red, green, blue, alpha in image.getdata()
+        for red, green, blue, alpha in image.get_flattened_data()
     )
 
     if not has_palette_pixels:
