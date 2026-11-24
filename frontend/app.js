@@ -34,6 +34,7 @@ function updateCardSize(size) {
   currentSize = size;
   previewContainer.style.setProperty("--image-size", `${size}px`);
   preview.style.transform = "translateY(-60px) scale(1.2)";
+  refreshTextColor();
 }
 
 sizeOptions.forEach((option) => {
@@ -102,6 +103,7 @@ function updateCardPlaceholder(textarea, cardEl, placeholder) {
   const val = textarea.value.trim();
   cardEl.textContent = val ? textarea.value : placeholder;
   cardEl.classList.toggle("card-placeholder", !val);
+  refreshTextColor();
 }
 
 inputTitle.addEventListener("input", () => updateCardPlaceholder(inputTitle, cardTitle, PLACEHOLDER_TITLE));
@@ -230,7 +232,13 @@ function clearGradient() {
 
 function applyGradient(color) {
   gradientOverlay.style.background = `linear-gradient(to bottom, transparent 0%, ${color.hex} 100%)`;
-  cardText.style.color = getAccessibleTextColor(color.hex);
+  refreshTextColor();
+}
+
+function refreshTextColor() {
+  if (currentSelectedHex) {
+    cardText.style.color = getPreviewTextColor(currentSelectedHex);
+  }
 }
 
 function getAccessibleTextColor(hex) {
@@ -242,6 +250,78 @@ function getAccessibleTextColor(hex) {
   const contrastWithBlack = (luminance + 0.05) / 0.05;
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   return contrastWithBlack >= contrastWithWhite ? "#000" : "#FFF";
+}
+
+function getPreviewTextColor(hex) {
+  if (!preview.complete || !preview.naturalWidth || !preview.naturalHeight) {
+    return getAccessibleTextColor(hex);
+  }
+
+  const width = previewContainer.clientWidth;
+  const height = previewContainer.clientHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return getAccessibleTextColor(hex);
+
+  const coverScale = Math.max(currentSize / preview.naturalWidth, currentSize / preview.naturalHeight);
+  const sourceWidth = currentSize / coverScale;
+  const sourceHeight = currentSize / coverScale;
+  const sourceX = (preview.naturalWidth - sourceWidth) / 2;
+  const sourceY = (preview.naturalHeight - sourceHeight) / 2;
+
+  ctx.translate(width / 2, -60);
+  ctx.scale(1.2, 1.2);
+  ctx.translate(-width / 2, 0);
+  ctx.drawImage(
+    preview,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    (width - currentSize) / 2,
+    0,
+    currentSize,
+    currentSize
+  );
+
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  const containerRect = previewContainer.getBoundingClientRect();
+  const textRect = cardText.getBoundingClientRect();
+  const titleRect = cardTitle.getBoundingClientRect();
+  const padding = Number.parseFloat(getComputedStyle(cardText).paddingLeft) || 0;
+  const left = Math.max(0, Math.floor(textRect.left - containerRect.left + padding));
+  const right = Math.min(width, Math.ceil(textRect.right - containerRect.left - padding));
+  // Use the headline as the shared color reference because the gradient gets brighter toward the bottom.
+  const top = Math.max(0, Math.floor(titleRect.top - containerRect.top));
+  const bottom = Math.min(height, Math.ceil(titleRect.bottom - containerRect.top));
+  const gradientRect = gradientOverlay.getBoundingClientRect();
+  const gradientTop = gradientRect.top - containerRect.top;
+  const overlay = [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+  const stepX = Math.max(1, Math.floor((right - left) / 24));
+  const stepY = Math.max(1, Math.floor((bottom - top) / 24));
+  let blackContrast = 0;
+  let whiteContrast = 0;
+
+  for (let y = top; y < bottom; y += stepY) {
+    const opacity = Math.max(0, Math.min(1, (y + 0.5 - gradientTop) / gradientRect.height));
+    for (let x = left; x < right; x += stepX) {
+      const index = (y * width + x) * 4;
+      const channels = overlay.map((channel, i) => {
+        const composite = pixels[index + i] * (1 - opacity) + channel * opacity;
+        const normalized = composite / 255;
+        return normalized <= 0.04045
+          ? normalized / 12.92
+          : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      blackContrast += (luminance + 0.05) / 0.05;
+      whiteContrast += 1.05 / (luminance + 0.05);
+    }
+  }
+
+  return blackContrast >= whiteContrast ? "#000" : "#FFF";
 }
 
 // ── 다운로드 ──
